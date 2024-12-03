@@ -1,0 +1,83 @@
+#!/bin/bash
+set -e
+echo
+echo "Введите процент заполненности для проверки раздела(от 1 до 100): "
+echo
+read -e -i "50" perc 
+echo
+
+if [[ ! "$perc" =~ ^[0-9]+$ ]]; then
+	echo "Значение переменной не является числом"
+    exit
+elif  [ ! "$perc" -gt 0 ] || [ ! "$perc" -le 100 ];then
+	echo "Введенное число не является корректным"
+	exit
+fi
+
+
+usage=$(df -h /LOG | awk 'NR==2 {print $5}' | sed 's/%//')
+echo "Текущая заполненность = $usage%"
+echo
+
+if [ "$usage" -gt "$perc" ]; then
+	files=()
+	cd /LOG
+	for file in /LOG/* ; do
+		if [[ "$file" != "/LOG/lost+found" ]]; then
+     		if [[ "$file" =~ ' ' ]] ; then
+       			files+=("${file// /_}")
+       			mv "$file" "${file// /_}"
+     		else
+       			files+=("$file")
+     		fi
+  		fi
+ 	done
+ 
+ 
+         
+	if [ ${#files[@]} -gt 0 ]; then
+    		sfiles=($(ls -ltr "${files[@]}" | awk 'NR>0 {print $9}' ))  
+        var=0
+        for file in "${sfiles[@]}"; do
+            var=$(($var + 1))
+        done
+ 	fi
+ 
+ 	echo "Всего файлов $var шт"
+ 	echo "Введите количество файлов которые нужно заархивировать:"
+ 	echo
+ 	read -e -i "10" num 
+ 	echo
+ 	
+	if [[ ! "$num" =~ ^[0-9]+$ ]]; then
+		echo "Значение переменной не является числом"
+		exit
+	elif [[  "$num" -gt $var  ]] ;then
+  		echo "Введенное число не является корректным"
+  		exit
+ 	fi
+
+ 	cd /BACKUP
+	mkdir LOG
+	
+ 	cnt=0
+ 	for file in "${sfiles[@]}"; do
+            cnt=$(($cnt + 1))
+            mv "$file" LOG
+            unset $sfiles[0]
+            if [ $cnt -eq $num ]; then
+            		break
+            	fi
+    done
+    
+    cd /BACKUP
+    if [ -f "archive.tar.gz" ]; then
+    		tar -xf "archive.tar.gz" --strip-components=1 -C LOG
+    		rm -rf "archive.tar.gz"
+    	fi
+    	tar -czf "archive.tar.gz"  LOG
+    	rm -rf LOG
+
+else
+	echo "Необходимости в архивировании отсутствует"
+fi 
